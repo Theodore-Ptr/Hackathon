@@ -2,20 +2,25 @@ import requests
 from bs4 import BeautifulSoup
 
 
-URL = "https://7karat.by/catalog/koltsa/"
+URL = "https://7karat.by/catalog/koltsa/?PAGEN_1="
 KORAT_PAGE = requests.get(URL)
 
 SOUP = BeautifulSoup(KORAT_PAGE.content, "html.parser")
 DEBUG = True
 
 
-def get_rings():
-    return SOUP.find_all("div", class_="one_product_js")
+def get_rings(rings_page_soup):
+    return rings_page_soup.find_all("div", class_="one_product_js")
 
 
 def get_ring_params(ring_soup, link):
     articul = ring_soup.find_all("td", itemprop="brand")[0].contents[0]
-    material = ring_soup.find_all("label", class_="size-radio-label")[0].contents[0]
+
+    try:
+        material = ring_soup.find_all("label", class_="size-radio-label")[0].contents[0]
+    except IndexError:
+        material = None
+
     ring_type = link.split("/")[3]
 
     return articul, material, ring_type
@@ -69,20 +74,27 @@ def get_injection(ring_soup):
 
 if __name__ == "__main__":
     DATA_FILE = open("data.txt", "w", encoding="utf-8")
+    DATA_FILE.write("id|matter|injection_params|weight|size|is_defect|platemark|type|price_before_takeoff|price_after_discount")
 
-    for ring in get_rings():
-        link = ring.find("a", class_="link_to_product")["href"]
-        ring_page = requests.get(f"https://7karat.by/{link}")
-        ring_soup = BeautifulSoup(ring_page.content, "html.parser")
+    for page_idx in range(1, 282):
+        print(f"PARSING PAGE {page_idx}")
 
-        articul, material, ring_type = get_ring_params(ring_soup, link)
-        ring_injection = get_injection(ring_soup)
-        probe = get_probe(ring_soup)
+        rings_page = requests.get(URL + str(page_idx))
+        rings_page_soup = BeautifulSoup(rings_page.content, "html.parser")
 
-        for shop in get_shops(ring_soup):
-            weight, size, price, price_after_discount, defect = get_shop_param(shop)
-            if DEBUG:
-                print(f"{articul},{material},{ring_injection},{weight},{size},{defect},{probe},{ring_type},{price},{price_after_discount}")
-            DATA_FILE.write(f"{articul}|{material}|{ring_injection}|{weight}|{size}|{int(defect)}|{probe}|{ring_type}|{price}|{price_after_discount}\n")
+        for ring in get_rings(rings_page_soup):
+            link = ring.find("a", class_="link_to_product")["href"]
+            ring_page = requests.get(f"https://7karat.by/{link}")
+            ring_soup = BeautifulSoup(ring_page.content, "html.parser")
+
+            articul, material, ring_type = get_ring_params(ring_soup, link)
+            ring_injection = get_injection(ring_soup)
+            probe = get_probe(ring_soup)
+
+            for shop in get_shops(ring_soup):
+                weight, size, price, price_after_discount, defect = get_shop_param(shop)
+                if DEBUG:
+                    print(f"{articul},{material},{ring_injection},{weight},{size},{defect},{probe},{ring_type},{price},{price_after_discount}")
+                DATA_FILE.write(f"{articul}|{material}|{ring_injection}|{weight}|{size}|{int(defect)}|{probe}|{ring_type}|{price}|{price_after_discount}\n")
 
     DATA_FILE.close()
