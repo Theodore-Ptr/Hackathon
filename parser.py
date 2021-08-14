@@ -6,6 +6,7 @@ URL = "https://7karat.by/catalog/koltsa/"
 KORAT_PAGE = requests.get(URL)
 
 SOUP = BeautifulSoup(KORAT_PAGE.content, "html.parser")
+DEBUG = True
 
 
 def get_rings():
@@ -44,9 +45,26 @@ def get_shop_param(shop):
     weight = weight_spans[0].contents[0]
     size = weight_spans[1].contents[0]
     price = prices[0].contents[0]
+    
+    if len(prices) == 2:
+        price_after_discount = prices[1].contents[0]
+    else:
+        price_after_discount = None
+
     defect = len(shop.find_all("div", class_="info_text")[0].contents) == 1
 
-    return weight, size, price, defect
+    return weight, size, price, price_after_discount, defect
+
+
+def get_injection(ring_soup):
+    item_props = ring_soup.find_all("table", class_="catalog-item-props")[0]
+    tr_tags = item_props.find_all("tr", class_="offers-prop")
+
+    for tr_tag in tr_tags:
+        if tr_tag.contents[1].contents[0] == "Хар-ка вставки:":
+            return tr_tag.contents[3].contents[0]
+    
+    return None
 
 
 if __name__ == "__main__":
@@ -58,11 +76,13 @@ if __name__ == "__main__":
         ring_soup = BeautifulSoup(ring_page.content, "html.parser")
 
         articul, material, ring_type = get_ring_params(ring_soup, link)
+        ring_injection = get_injection(ring_soup)
         probe = get_probe(ring_soup)
 
         for shop in get_shops(ring_soup):
-            weight, size, price, defect = get_shop_param(shop)
-            print(f"{articul},{material},{weight},{size},{defect},{probe},{ring_type},{price}")
-            DATA_FILE.write(f"{articul};{material};{weight};{size};{int(defect)};{probe};{ring_type};{price}\n")
+            weight, size, price, price_after_discount, defect = get_shop_param(shop)
+            if DEBUG:
+                print(f"{articul},{material},{ring_injection},{weight},{size},{defect},{probe},{ring_type},{price},{price_after_discount}")
+            DATA_FILE.write(f"{articul}|{material}|{ring_injection}|{weight}|{size}|{int(defect)}|{probe}|{ring_type}|{price}|{price_after_discount}\n")
 
     DATA_FILE.close()
