@@ -3,10 +3,6 @@ from bs4 import BeautifulSoup
 
 
 URL = "https://7karat.by/catalog/koltsa/?PAGEN_1="
-KORAT_PAGE = requests.get(URL)
-
-SOUP = BeautifulSoup(KORAT_PAGE.content, "html.parser")
-DEBUG = True
 
 
 def get_rings(rings_page_soup):
@@ -22,7 +18,6 @@ def get_ring_params(ring_soup, link):
         material = None
 
     ring_type = link.split("/")[3]
-
     return articul, material, ring_type
 
 
@@ -46,18 +41,20 @@ def get_shop_param(shop):
     prices = shop.find_all("span", itemprop="price")
 
     weight_spans = weight_blocks[0].find_all("span")
-
     weight = weight_spans[0].contents[0]
-    size = weight_spans[1].contents[0]
+
+    try:
+        size = weight_spans[1].contents[0]
+    except IndexError:
+        size = None
+
     price = prices[0].contents[0]
-    
     if len(prices) == 2:
         price_after_discount = prices[1].contents[0]
     else:
         price_after_discount = None
 
     defect = len(shop.find_all("div", class_="info_text")[0].contents) == 1
-
     return weight, size, price, price_after_discount, defect
 
 
@@ -73,10 +70,12 @@ def get_injection(ring_soup):
 
 
 if __name__ == "__main__":
-    DATA_FILE = open("data.txt", "w", encoding="utf-8")
-    DATA_FILE.write("id|matter|injection_params|weight|size|is_defect|platemark|type|price_before_takeoff|price_after_discount")
+    data_file = open("data.csv", "w", encoding="utf-8")
+    data_file.write(("id|matter|injection_params|weight|size|"
+                    "is_defect|platemark|type|"
+                    "price_before_takeoff|price_after_discount\n"))
 
-    for page_idx in range(1, 282):
+    for page_idx in range(1, 250):
         print(f"PARSING PAGE {page_idx}")
 
         rings_page = requests.get(URL + str(page_idx))
@@ -90,11 +89,11 @@ if __name__ == "__main__":
             articul, material, ring_type = get_ring_params(ring_soup, link)
             ring_injection = get_injection(ring_soup)
             probe = get_probe(ring_soup)
-
+            
             for shop in get_shops(ring_soup):
                 weight, size, price, price_after_discount, defect = get_shop_param(shop)
-                if DEBUG:
-                    print(f"{articul},{material},{ring_injection},{weight},{size},{defect},{probe},{ring_type},{price},{price_after_discount}")
-                DATA_FILE.write(f"{articul}|{material}|{ring_injection}|{weight}|{size}|{int(defect)}|{probe}|{ring_type}|{price}|{price_after_discount}\n")
-
-    DATA_FILE.close()
+                data_file.write((f"{articul}|{material}|{ring_injection}|"
+                                    f"{weight}|{size}|{int(defect)}|{probe}|"
+                                    f"{ring_type}|{price}|{price_after_discount}\n"))
+                
+    data_file.close()
